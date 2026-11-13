@@ -1,0 +1,6 @@
+{
+  "name": "Absensi Koto Balingka",
+  "description": "Sistem informasi pencatatan kehadiran, jadwal sekolah, rekap bulanan, dan direktori guru Kecamatan Koto Balingka, Kabupaten Pasaman Barat.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

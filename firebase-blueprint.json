@@ -1,0 +1,760 @@
+{
+  "entities": {
+    "DistrictSettings": {
+      "title": "DistrictSettings",
+      "description": "District-wide name, coordinator details, working hours, and verification rules.",
+      "type": "object",
+      "properties": {
+        "districtKey": {
+          "type": "string",
+          "description": "Fixed partition key for the district",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "districtName": {
+          "type": "string",
+          "description": "Configurable district name",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "regencyName": {
+          "type": "string",
+          "description": "Regency or city name",
+          "maxLength": 120
+        },
+        "coordinatorName": {
+          "type": "string",
+          "description": "District coordinator name",
+          "maxLength": 100
+        },
+        "coordinatorNip": {
+          "type": "string",
+          "description": "Coordinator NIP",
+          "maxLength": 30,
+          "pattern": "^[0-9\\-\\s]*$"
+        },
+        "checkInStart": {
+          "type": "string",
+          "description": "Standard check-in time HH:mm",
+          "maxLength": 5,
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+        },
+        "lateToleranceMinutes": {
+          "type": "number",
+          "description": "Grace period in minutes before marking late"
+        },
+        "checkOutStart": {
+          "type": "string",
+          "description": "Standard check-out time HH:mm",
+          "maxLength": 5,
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+        },
+        "requireLocationVerification": {
+          "type": "boolean",
+          "description": "Whether teacher check-in/out enforces school GPS radius"
+        },
+        "requireFaceVerification": {
+          "type": "boolean",
+          "description": "Whether teacher check-in/out requires live photo capture"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update"
+        },
+        "updatedByUsername": {
+          "type": "string",
+          "description": "Username of admin who updated settings",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9_\\-]+$"
+        }
+      },
+      "required": [
+        "districtKey",
+        "districtName",
+        "regencyName",
+        "coordinatorName",
+        "coordinatorNip",
+        "checkInStart",
+        "lateToleranceMinutes",
+        "checkOutStart",
+        "requireLocationVerification",
+        "requireFaceVerification",
+        "updatedAt",
+        "updatedByUsername"
+      ]
+    },
+    "School": {
+      "title": "School",
+      "description": "School unit registered inside the district with geofence coordinates and Monday-Saturday schedule.",
+      "type": "object",
+      "properties": {
+        "districtKey": {
+          "type": "string",
+          "description": "District partition key",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "Official school name",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "npsn": {
+          "type": "string",
+          "description": "National School Identification Number",
+          "maxLength": 20,
+          "pattern": "^[0-9A-Za-z-]*$"
+        },
+        "address": {
+          "type": "string",
+          "description": "School address",
+          "maxLength": 200
+        },
+        "hasLocation": {
+          "type": "boolean",
+          "description": "Whether GPS coordinates are configured for geofencing"
+        },
+        "latitude": {
+          "type": "number",
+          "description": "School GPS latitude"
+        },
+        "longitude": {
+          "type": "number",
+          "description": "School GPS longitude"
+        },
+        "radiusMeters": {
+          "type": "number",
+          "description": "Allowed geofence radius in meters (20 to 5000)"
+        },
+        "weeklySchedule": {
+          "type": "object",
+          "description": "Monday to Saturday check-in and check-out schedule map per school"
+        },
+        "status": {
+          "type": "string",
+          "description": "School operational status",
+          "enum": ["aktif", "nonaktif"],
+          "maxLength": 20
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        },
+        "updatedByUsername": {
+          "type": "string",
+          "description": "Admin username who created or updated this school",
+          "maxLength": 40
+        }
+      },
+      "required": [
+        "districtKey",
+        "schoolName",
+        "npsn",
+        "address",
+        "hasLocation",
+        "latitude",
+        "longitude",
+        "radiusMeters",
+        "weeklySchedule",
+        "status",
+        "createdAt",
+        "updatedAt",
+        "updatedByUsername"
+      ]
+    },
+    "SchoolHoliday": {
+      "title": "SchoolHoliday",
+      "description": "Per-school holiday or leave day configured by an administrator.",
+      "type": "object",
+      "properties": {
+        "districtKey": {
+          "type": "string",
+          "description": "District partition key",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "schoolId": {
+          "type": "string",
+          "description": "School document ID",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "Snapshot of school name",
+          "maxLength": 120
+        },
+        "date": {
+          "type": "string",
+          "description": "Holiday date YYYY-MM-DD",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "monthKey": {
+          "type": "string",
+          "description": "Month key YYYY-MM",
+          "maxLength": 7,
+          "pattern": "^\\d{4}-\\d{2}$"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Holiday or leave label",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp"
+        },
+        "updatedByUsername": {
+          "type": "string",
+          "description": "Admin username who created this holiday",
+          "maxLength": 40
+        }
+      },
+      "required": [
+        "districtKey",
+        "schoolId",
+        "schoolName",
+        "date",
+        "monthKey",
+        "reason",
+        "createdAt",
+        "updatedAt",
+        "updatedByUsername"
+      ]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Teacher profile with customizable avatar, cover photo, and bio.",
+      "type": "object",
+      "properties": {
+        "districtKey": {
+          "type": "string",
+          "description": "District partition key",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Teacher full name",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "nip": {
+          "type": "string",
+          "description": "NIP, NUPTK, or dash",
+          "maxLength": 30,
+          "pattern": "^[0-9\\-\\s]*$"
+        },
+        "roleTitle": {
+          "type": "string",
+          "description": "Position or teaching role",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "employmentType": {
+          "type": "string",
+          "description": "Employment status",
+          "enum": ["PNS", "PPPK", "Honorer"],
+          "maxLength": 20
+        },
+        "schoolId": {
+          "type": "string",
+          "description": "Assigned school document ID",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "Snapshot of assigned school name",
+          "maxLength": 120
+        },
+        "username": {
+          "type": "string",
+          "description": "Registered login username",
+          "minLength": 3,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9_\\-]+$"
+        },
+        "hasFacePhoto": {
+          "type": "boolean",
+          "description": "Legacy face reference flag"
+        },
+        "bio": {
+          "type": "string",
+          "description": "Teacher self-written profile biography",
+          "maxLength": 300
+        },
+        "whatsapp": {
+          "type": "string",
+          "description": "Teacher WhatsApp number for direct profile link",
+          "maxLength": 25,
+          "pattern": "^[0-9+\\-\\s]*$"
+        },
+        "instagram": {
+          "type": "string",
+          "description": "Teacher Instagram handle for direct profile link",
+          "maxLength": 40,
+          "pattern": "^[a-zA-Z0-9._]*$"
+        },
+        "avatarPhotoUrl": {
+          "type": "string",
+          "description": "Original-resolution profile avatar image data URL",
+          "maxLength": 470000
+        },
+        "coverPhotoUrl": {
+          "type": "string",
+          "description": "Original-resolution profile cover image data URL",
+          "maxLength": 470000
+        },
+        "status": {
+          "type": "string",
+          "description": "Active duty status",
+          "enum": ["aktif", "nonaktif"],
+          "maxLength": 20
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp"
+        },
+        "updatedByUsername": {
+          "type": "string",
+          "description": "Username who created or updated this record",
+          "maxLength": 40
+        }
+      },
+      "required": [
+        "districtKey",
+        "fullName",
+        "nip",
+        "roleTitle",
+        "employmentType",
+        "schoolId",
+        "schoolName",
+        "username",
+        "hasFacePhoto",
+        "bio",
+        "avatarPhotoUrl",
+        "coverPhotoUrl",
+        "status",
+        "createdAt",
+        "updatedAt",
+        "updatedByUsername"
+      ]
+    },
+    "TeacherMessage": {
+      "title": "TeacherMessage",
+      "description": "Direct message between teachers inside the district.",
+      "type": "object",
+      "properties": {
+        "districtKey": {
+          "type": "string",
+          "description": "District partition key",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "threadId": {
+          "type": "string",
+          "description": "Deterministic sorted pair of teacher IDs",
+          "maxLength": 140
+        },
+        "participants": {
+          "type": "array",
+          "description": "Two participant teacher IDs"
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Sender teacher document ID",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderName": {
+          "type": "string",
+          "description": "Sender display name",
+          "maxLength": 100
+        },
+        "senderUsername": {
+          "type": "string",
+          "description": "Sender login username",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9_\\-]+$"
+        },
+        "recipientId": {
+          "type": "string",
+          "description": "Recipient teacher document ID",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "recipientName": {
+          "type": "string",
+          "description": "Recipient display name",
+          "maxLength": 100
+        },
+        "body": {
+          "type": "string",
+          "description": "Message text content",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "isRead": {
+          "type": "boolean",
+          "description": "Whether the recipient has read the message"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": [
+        "districtKey",
+        "threadId",
+        "participants",
+        "senderId",
+        "senderName",
+        "senderUsername",
+        "recipientId",
+        "recipientName",
+        "body",
+        "isRead",
+        "createdAt"
+      ]
+    },
+    "TeacherFace": {
+      "title": "TeacherFace",
+      "description": "Legacy isolated reference face photo document.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "description": "Linked teacher document ID",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "photoDataUrl": {
+          "type": "string",
+          "description": "Compressed JPEG base64 data URL",
+          "maxLength": 140000
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp"
+        },
+        "updatedByUsername": {
+          "type": "string",
+          "description": "Admin username who uploaded the reference photo",
+          "maxLength": 40
+        }
+      },
+      "required": ["teacherId", "photoDataUrl", "updatedAt", "updatedByUsername"]
+    },
+    "Credential": {
+      "title": "Credential",
+      "description": "Isolated Username & salted SHA-256 PIN credential document.",
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "Unique lowercase login username",
+          "minLength": 3,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9_\\-]+$"
+        },
+        "role": {
+          "type": "string",
+          "description": "Account role",
+          "enum": ["teacher", "admin"],
+          "maxLength": 20
+        },
+        "pinSalt": {
+          "type": "string",
+          "description": "Random hex salt",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "pinHash": {
+          "type": "string",
+          "description": "SHA-256 hex digest of salt + PIN",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "teacherId": {
+          "type": "string",
+          "description": "Linked teacher document ID",
+          "maxLength": 64
+        },
+        "schoolId": {
+          "type": "string",
+          "description": "Linked school document ID",
+          "maxLength": 64
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name",
+          "maxLength": 100
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether this credential can sign in"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp"
+        },
+        "createdByUsername": {
+          "type": "string",
+          "description": "Admin username that registered this credential",
+          "maxLength": 40
+        },
+        "updatedByUsername": {
+          "type": "string",
+          "description": "Admin username that last updated this credential",
+          "maxLength": 40
+        }
+      },
+      "required": [
+        "username",
+        "role",
+        "pinSalt",
+        "pinHash",
+        "teacherId",
+        "schoolId",
+        "displayName",
+        "isActive",
+        "createdAt",
+        "updatedAt",
+        "createdByUsername",
+        "updatedByUsername"
+      ]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily attendance record with GPS coordinate and live photo evidence.",
+      "type": "object",
+      "properties": {
+        "districtKey": {
+          "type": "string",
+          "description": "District partition key",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "date": {
+          "type": "string",
+          "description": "Attendance date YYYY-MM-DD",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "monthKey": {
+          "type": "string",
+          "description": "Month key YYYY-MM",
+          "maxLength": 7,
+          "pattern": "^\\d{4}-\\d{2}$"
+        },
+        "teacherId": {
+          "type": "string",
+          "description": "Teacher document ID",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "teacherName": {
+          "type": "string",
+          "description": "Snapshot of teacher full name",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "teacherNip": {
+          "type": "string",
+          "description": "Snapshot of teacher NIP",
+          "maxLength": 30
+        },
+        "roleTitle": {
+          "type": "string",
+          "description": "Snapshot of teacher role title",
+          "maxLength": 80
+        },
+        "schoolId": {
+          "type": "string",
+          "description": "School document ID",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "Snapshot of school name",
+          "maxLength": 120
+        },
+        "status": {
+          "type": "string",
+          "description": "Attendance status",
+          "enum": ["hadir", "terlambat", "izin", "sakit", "alpa"],
+          "maxLength": 20
+        },
+        "checkInTime": {
+          "type": "string",
+          "description": "Check-in time HH:mm or empty",
+          "maxLength": 5,
+          "pattern": "^$|^([01][0-9]|2[0-3]):[0-5][0-9]$"
+        },
+        "checkOutTime": {
+          "type": "string",
+          "description": "Check-out time HH:mm or empty",
+          "maxLength": 5,
+          "pattern": "^$|^([01][0-9]|2[0-3]):[0-5][0-9]$"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Reason or attendance note",
+          "maxLength": 300
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Recorded GPS latitude (0 if unavailable)"
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Recorded GPS longitude (0 if unavailable)"
+        },
+        "distanceMeters": {
+          "type": "number",
+          "description": "Distance to school in meters (-1 if unconfigured)"
+        },
+        "locationStatus": {
+          "type": "string",
+          "description": "Result of location radius verification",
+          "enum": ["verified", "outside_radius", "unconfigured", "not_required"],
+          "maxLength": 30
+        },
+        "faceStatus": {
+          "type": "string",
+          "description": "Result of photo or face verification",
+          "enum": ["photo_verified", "liveness_verified", "liveness_failed", "matched", "mismatch", "no_reference", "not_required"],
+          "maxLength": 30
+        },
+        "faceConfidence": {
+          "type": "number",
+          "description": "Confidence percentage (0 to 100)"
+        },
+        "checkInPhotoUrl": {
+          "type": "string",
+          "description": "Compressed live selfie thumbnail data URL",
+          "maxLength": 100000
+        },
+        "submittedByRole": {
+          "type": "string",
+          "description": "Whether recorded by teacher or admin",
+          "enum": ["teacher", "admin"],
+          "maxLength": 20
+        },
+        "recordedByUsername": {
+          "type": "string",
+          "description": "Username of recorder",
+          "maxLength": 40
+        },
+        "recordedByName": {
+          "type": "string",
+          "description": "Display name of recorder",
+          "maxLength": 100
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp"
+        }
+      },
+      "required": [
+        "districtKey",
+        "date",
+        "monthKey",
+        "teacherId",
+        "teacherName",
+        "teacherNip",
+        "roleTitle",
+        "schoolId",
+        "schoolName",
+        "status",
+        "checkInTime",
+        "checkOutTime",
+        "notes",
+        "latitude",
+        "longitude",
+        "distanceMeters",
+        "locationStatus",
+        "faceStatus",
+        "faceConfidence",
+        "checkInPhotoUrl",
+        "submittedByRole",
+        "recordedByUsername",
+        "recordedByName",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/districtSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/DistrictSettings" },
+      "description": "District settings, schedule, and verification toggles."
+    },
+    "/schools/{schoolId}": {
+      "schema": { "$ref": "#/entities/School" },
+      "description": "List of schools with GPS coordinates, geofence radius, and Mon-Sat schedules."
+    },
+    "/schoolHolidays/{holidayId}": {
+      "schema": { "$ref": "#/entities/SchoolHoliday" },
+      "description": "Per-school holiday and leave day entries."
+    },
+    "/teachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/Teacher" },
+      "description": "Teacher roster, school assignment, and customizable profile fields."
+    },
+    "/teacherMessages/{messageId}": {
+      "schema": { "$ref": "#/entities/TeacherMessage" },
+      "description": "Direct messages sent between teachers."
+    },
+    "/teacherFaces/{teacherId}": {
+      "schema": { "$ref": "#/entities/TeacherFace" },
+      "description": "Legacy isolated reference face photo per teacher."
+    },
+    "/credentials/{username}": {
+      "schema": { "$ref": "#/entities/Credential" },
+      "description": "Isolated salted SHA-256 PIN credentials keyed by lowercase username."
+    },
+    "/attendance/{attendanceId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Daily attendance records with coordinate and live photo evidence."
+    }
+  }
+}

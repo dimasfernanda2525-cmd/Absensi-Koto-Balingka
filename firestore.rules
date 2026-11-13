@@ -1,0 +1,559 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Connection check endpoint
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+      allow list, create, update, delete: if false;
+    }
+
+    // Core helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUsername(u) {
+      return u is string && u.size() >= 3 && u.size() <= 40 && u.matches('^[a-z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidDistrictKey(val) {
+      return val is string && val == 'kecamatan-utama';
+    }
+
+    function isValidTimeOrEmpty(val) {
+      return val is string && val.size() <= 5 && (val == '' || val.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'));
+    }
+
+    function isValidTimeRequired(val) {
+      return val is string && val.size() == 5 && val.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+    }
+
+    function isActiveAdminUsername(uname) {
+      return isValidUsername(uname)
+        && exists(/databases/$(database)/documents/credentials/$(uname))
+        && get(/databases/$(database)/documents/credentials/$(uname)).data.role == 'admin'
+        && get(/databases/$(database)/documents/credentials/$(uname)).data.isActive == true;
+    }
+
+    function isActiveTeacherCredential(uname) {
+      return isValidUsername(uname)
+        && exists(/databases/$(database)/documents/credentials/$(uname))
+        && get(/databases/$(database)/documents/credentials/$(uname)).data.role == 'teacher'
+        && get(/databases/$(database)/documents/credentials/$(uname)).data.isActive == true;
+    }
+
+    function isValidDaySchedule(d) {
+      return d is map
+        && d.keys().hasAll(['checkInStart', 'checkOutStart', 'enabled'])
+        && d.keys().hasOnly(['checkInStart', 'checkOutStart', 'enabled'])
+        && isValidTimeRequired(d.checkInStart)
+        && isValidTimeRequired(d.checkOutStart)
+        && d.enabled is bool;
+    }
+
+    function isValidWeeklySchedule(ws) {
+      return ws is map
+        && ws.keys().hasAll(['senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'])
+        && ws.keys().hasOnly(['senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'])
+        && isValidDaySchedule(ws.senin)
+        && isValidDaySchedule(ws.selasa)
+        && isValidDaySchedule(ws.rabu)
+        && isValidDaySchedule(ws.kamis)
+        && isValidDaySchedule(ws.jumat)
+        && isValidDaySchedule(ws.sabtu);
+    }
+
+    function isValidDistrictSettings(data) {
+      return data.keys().hasAll([
+        'districtKey', 'districtName', 'regencyName', 'coordinatorName',
+        'coordinatorNip', 'checkInStart', 'lateToleranceMinutes',
+        'checkOutStart', 'requireLocationVerification', 'requireFaceVerification',
+        'updatedAt', 'updatedByUsername'
+      ])
+      && data.keys().hasOnly([
+        'districtKey', 'districtName', 'regencyName', 'coordinatorName',
+        'coordinatorNip', 'checkInStart', 'lateToleranceMinutes',
+        'checkOutStart', 'requireLocationVerification', 'requireFaceVerification',
+        'updatedAt', 'updatedByUsername'
+      ])
+      && isValidDistrictKey(data.districtKey)
+      && data.districtName is string && data.districtName.size() >= 3 && data.districtName.size() <= 120
+      && data.regencyName is string && data.regencyName.size() <= 120
+      && data.coordinatorName is string && data.coordinatorName.size() <= 100
+      && data.coordinatorNip is string && data.coordinatorNip.size() <= 30 && data.coordinatorNip.matches('^[0-9\\-\\s]*$')
+      && isValidTimeRequired(data.checkInStart)
+      && data.lateToleranceMinutes is int && data.lateToleranceMinutes >= 0 && data.lateToleranceMinutes <= 120
+      && isValidTimeRequired(data.checkOutStart)
+      && data.requireLocationVerification is bool
+      && data.requireFaceVerification is bool
+      && data.updatedAt is timestamp
+      && isValidUsername(data.updatedByUsername);
+    }
+
+    function isValidSchool(data) {
+      return data.keys().hasAll([
+        'districtKey', 'schoolName', 'npsn', 'address',
+        'hasLocation', 'latitude', 'longitude', 'radiusMeters',
+        'weeklySchedule', 'status', 'createdAt', 'updatedAt', 'updatedByUsername'
+      ])
+      && data.keys().hasOnly([
+        'districtKey', 'schoolName', 'npsn', 'address',
+        'hasLocation', 'latitude', 'longitude', 'radiusMeters',
+        'weeklySchedule', 'status', 'createdAt', 'updatedAt', 'updatedByUsername'
+      ])
+      && isValidDistrictKey(data.districtKey)
+      && data.schoolName is string && data.schoolName.size() >= 3 && data.schoolName.size() <= 120
+      && data.npsn is string && data.npsn.size() <= 20 && data.npsn.matches('^[0-9A-Za-z-]*$')
+      && data.address is string && data.address.size() <= 200
+      && data.hasLocation is bool
+      && data.latitude is number && data.latitude >= -90 && data.latitude <= 90
+      && data.longitude is number && data.longitude >= -180 && data.longitude <= 180
+      && data.radiusMeters is int && data.radiusMeters >= 20 && data.radiusMeters <= 5000
+      && isValidWeeklySchedule(data.weeklySchedule)
+      && data.status in ['aktif', 'nonaktif']
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp
+      && isValidUsername(data.updatedByUsername);
+    }
+
+    function isValidSchoolHoliday(data) {
+      return data.keys().hasAll([
+        'districtKey', 'schoolId', 'schoolName', 'date', 'monthKey',
+        'reason', 'createdAt', 'updatedAt', 'updatedByUsername'
+      ])
+      && data.keys().hasOnly([
+        'districtKey', 'schoolId', 'schoolName', 'date', 'monthKey',
+        'reason', 'createdAt', 'updatedAt', 'updatedByUsername'
+      ])
+      && isValidDistrictKey(data.districtKey)
+      && isValidId(data.schoolId) && data.schoolId.size() <= 64
+      && data.schoolName is string && data.schoolName.size() >= 2 && data.schoolName.size() <= 120
+      && data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+      && data.monthKey is string && data.monthKey.size() == 7 && data.monthKey.matches('^\\d{4}-\\d{2}$')
+      && data.date[0:7] == data.monthKey
+      && data.reason is string && data.reason.size() >= 2 && data.reason.size() <= 120
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp
+      && isValidUsername(data.updatedByUsername);
+    }
+
+    function isValidTeacher(data) {
+      return data.keys().hasAll([
+        'districtKey', 'fullName', 'nip', 'roleTitle', 'employmentType',
+        'schoolId', 'schoolName', 'username', 'hasFacePhoto', 'status',
+        'createdAt', 'updatedAt', 'updatedByUsername'
+      ])
+      && data.keys().hasOnly([
+        'districtKey', 'fullName', 'nip', 'roleTitle', 'employmentType',
+        'schoolId', 'schoolName', 'username', 'hasFacePhoto',
+        'bio', 'whatsapp', 'instagram', 'avatarPhotoUrl', 'coverPhotoUrl', 'status',
+        'createdAt', 'updatedAt', 'updatedByUsername'
+      ])
+      && isValidDistrictKey(data.districtKey)
+      && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 100
+      && data.nip is string && data.nip.size() <= 30 && data.nip.matches('^[0-9\\-\\s]*$')
+      && data.roleTitle is string && data.roleTitle.size() >= 2 && data.roleTitle.size() <= 80
+      && data.employmentType in ['PNS', 'PPPK', 'Honorer']
+      && isValidId(data.schoolId) && data.schoolId.size() <= 64
+      && data.schoolName is string && data.schoolName.size() >= 2 && data.schoolName.size() <= 120
+      && isValidUsername(data.username)
+      && data.hasFacePhoto is bool
+      && (!('bio' in data) || (data.bio is string && data.bio.size() <= 300))
+      && (!('whatsapp' in data) || (data.whatsapp is string && data.whatsapp.size() <= 25 && data.whatsapp.matches('^[0-9+\\-\\s]*$')))
+      && (!('instagram' in data) || (data.instagram is string && data.instagram.size() <= 40 && data.instagram.matches('^[a-zA-Z0-9._]*$')))
+      && (!('avatarPhotoUrl' in data) || (data.avatarPhotoUrl is string && data.avatarPhotoUrl.size() <= 470000))
+      && (!('coverPhotoUrl' in data) || (data.coverPhotoUrl is string && data.coverPhotoUrl.size() <= 470000))
+      && data.status in ['aktif', 'nonaktif']
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp
+      && isValidUsername(data.updatedByUsername);
+    }
+
+    function isValidTeacherMessage(data) {
+      return data.keys().hasAll([
+        'districtKey', 'threadId', 'participants', 'senderId', 'senderName',
+        'senderUsername', 'recipientId', 'recipientName', 'body', 'isRead', 'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'districtKey', 'threadId', 'participants', 'senderId', 'senderName',
+        'senderUsername', 'recipientId', 'recipientName', 'body', 'isRead', 'createdAt'
+      ])
+      && isValidDistrictKey(data.districtKey)
+      && data.threadId is string && data.threadId.size() >= 5 && data.threadId.size() <= 140
+      && data.participants is list && data.participants.size() == 2
+      && data.participants[0] is string && data.participants[0].size() <= 64
+      && data.participants[1] is string && data.participants[1].size() <= 64
+      && isValidId(data.senderId) && data.senderId.size() <= 64
+      && data.senderName is string && data.senderName.size() >= 2 && data.senderName.size() <= 100
+      && isValidUsername(data.senderUsername)
+      && isValidId(data.recipientId) && data.recipientId.size() <= 64
+      && data.senderId != data.recipientId
+      && data.recipientName is string && data.recipientName.size() >= 2 && data.recipientName.size() <= 100
+      && data.body is string && data.body.size() >= 1 && data.body.size() <= 500
+      && data.isRead is bool
+      && data.createdAt is timestamp;
+    }
+
+    function isValidTeacherFace(data) {
+      return data.keys().hasAll(['teacherId', 'photoDataUrl', 'updatedAt', 'updatedByUsername'])
+      && data.keys().hasOnly(['teacherId', 'photoDataUrl', 'updatedAt', 'updatedByUsername'])
+      && isValidId(data.teacherId) && data.teacherId.size() <= 64
+      && data.photoDataUrl is string && data.photoDataUrl.size() >= 20 && data.photoDataUrl.size() <= 140000
+      && data.updatedAt is timestamp
+      && isValidUsername(data.updatedByUsername);
+    }
+
+    function isValidCredential(data) {
+      return data.keys().hasAll([
+        'username', 'role', 'pinSalt', 'pinHash', 'teacherId',
+        'schoolId', 'displayName', 'isActive', 'createdAt',
+        'updatedAt', 'createdByUsername', 'updatedByUsername'
+      ])
+      && data.keys().hasOnly([
+        'username', 'role', 'pinSalt', 'pinHash', 'teacherId',
+        'schoolId', 'displayName', 'isActive', 'createdAt',
+        'updatedAt', 'createdByUsername', 'updatedByUsername'
+      ])
+      && isValidUsername(data.username)
+      && data.role in ['teacher', 'admin']
+      && data.pinSalt is string && data.pinSalt.size() >= 8 && data.pinSalt.size() <= 64
+      && data.pinHash is string && data.pinHash.size() == 64 && data.pinHash.matches('^[a-f0-9]+$')
+      && data.teacherId is string && data.teacherId.size() <= 64
+      && data.schoolId is string && data.schoolId.size() <= 64
+      && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+      && data.isActive is bool
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp
+      && isValidUsername(data.createdByUsername)
+      && isValidUsername(data.updatedByUsername);
+    }
+
+    function isValidAttendance(data) {
+      return data.keys().hasAll([
+        'districtKey', 'date', 'monthKey', 'teacherId', 'teacherName',
+        'teacherNip', 'roleTitle', 'schoolId', 'schoolName', 'status',
+        'checkInTime', 'checkOutTime', 'notes',
+        'latitude', 'longitude', 'distanceMeters', 'locationStatus',
+        'faceStatus', 'faceConfidence', 'checkInPhotoUrl',
+        'submittedByRole', 'recordedByUsername', 'recordedByName',
+        'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'districtKey', 'date', 'monthKey', 'teacherId', 'teacherName',
+        'teacherNip', 'roleTitle', 'schoolId', 'schoolName', 'status',
+        'checkInTime', 'checkOutTime', 'notes',
+        'latitude', 'longitude', 'distanceMeters', 'locationStatus',
+        'faceStatus', 'faceConfidence', 'checkInPhotoUrl',
+        'submittedByRole', 'recordedByUsername', 'recordedByName',
+        'createdAt', 'updatedAt'
+      ])
+      && isValidDistrictKey(data.districtKey)
+      && data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+      && data.monthKey is string && data.monthKey.size() == 7 && data.monthKey.matches('^\\d{4}-\\d{2}$')
+      && data.date[0:7] == data.monthKey
+      && isValidId(data.teacherId) && data.teacherId.size() <= 64
+      && data.teacherName is string && data.teacherName.size() >= 2 && data.teacherName.size() <= 100
+      && data.teacherNip is string && data.teacherNip.size() <= 30
+      && data.roleTitle is string && data.roleTitle.size() <= 80
+      && isValidId(data.schoolId) && data.schoolId.size() <= 64
+      && data.schoolName is string && data.schoolName.size() <= 120
+      && data.status in ['hadir', 'terlambat', 'izin', 'sakit', 'alpa']
+      && isValidTimeOrEmpty(data.checkInTime)
+      && isValidTimeOrEmpty(data.checkOutTime)
+      && data.notes is string && data.notes.size() <= 300
+      && data.latitude is number && data.latitude >= -90 && data.latitude <= 90
+      && data.longitude is number && data.longitude >= -180 && data.longitude <= 180
+      && data.distanceMeters is int && data.distanceMeters >= -1 && data.distanceMeters <= 20000000
+      && data.locationStatus in ['verified', 'outside_radius', 'unconfigured', 'not_required']
+      && data.faceStatus in ['photo_verified', 'liveness_verified', 'liveness_failed', 'matched', 'mismatch', 'no_reference', 'not_required']
+      && data.faceConfidence is int && data.faceConfidence >= 0 && data.faceConfidence <= 100
+      && data.checkInPhotoUrl is string && data.checkInPhotoUrl.size() <= 100000
+      && data.submittedByRole in ['teacher', 'admin']
+      && isValidUsername(data.recordedByUsername)
+      && data.recordedByName is string && data.recordedByName.size() >= 1 && data.recordedByName.size() <= 100
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    // 1. District Settings
+    match /districtSettings/{settingId} {
+      allow get: if isValidId(settingId) && settingId == 'main';
+      allow list: if resource.data.districtKey == 'kecamatan-utama';
+      allow create: if isValidId(settingId)
+        && settingId == 'main'
+        && isValidDistrictSettings(incoming())
+        && incoming().updatedAt == request.time
+        && (!exists(/databases/$(database)/documents/credentials/admin) || isActiveAdminUsername(incoming().updatedByUsername));
+      allow update: if isValidId(settingId)
+        && settingId == 'main'
+        && isValidDistrictSettings(incoming())
+        && incoming().districtKey == existing().districtKey
+        && incoming().updatedAt == request.time
+        && isActiveAdminUsername(incoming().updatedByUsername)
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'districtName', 'regencyName', 'coordinatorName', 'coordinatorNip',
+          'checkInStart', 'lateToleranceMinutes', 'checkOutStart',
+          'requireLocationVerification', 'requireFaceVerification',
+          'updatedAt', 'updatedByUsername'
+        ]);
+      allow delete: if false;
+    }
+
+    // 2. Schools inside the District
+    match /schools/{schoolId} {
+      allow get: if isValidId(schoolId);
+      allow list: if resource.data.districtKey == 'kecamatan-utama';
+      allow create: if isValidId(schoolId)
+        && isValidSchool(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isActiveAdminUsername(incoming().updatedByUsername);
+      allow update: if isValidId(schoolId)
+        && isValidSchool(incoming())
+        && (
+          ('createdAt' in existing() && existing().createdAt is timestamp)
+            ? incoming().createdAt == existing().createdAt
+            : incoming().createdAt == request.time
+        )
+        && (
+          'districtKey' in existing()
+            ? incoming().districtKey == existing().districtKey
+            : isValidDistrictKey(incoming().districtKey)
+        )
+        && incoming().updatedAt == request.time
+        && isActiveAdminUsername(incoming().updatedByUsername)
+        && incoming().diff(existing()).addedKeys().hasOnly([
+          'districtKey', 'schoolName', 'npsn', 'address',
+          'hasLocation', 'latitude', 'longitude', 'radiusMeters',
+          'weeklySchedule', 'status', 'createdAt', 'updatedAt', 'updatedByUsername'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
+          'schoolName', 'npsn', 'address',
+          'hasLocation', 'latitude', 'longitude', 'radiusMeters',
+          'weeklySchedule', 'status', 'createdAt', 'updatedAt', 'updatedByUsername'
+        ]);
+      allow delete: if isValidId(schoolId);
+    }
+
+    // 2b. Per-School Holiday / Leave Days
+    match /schoolHolidays/{holidayId} {
+      allow get: if isValidId(holidayId);
+      allow list: if resource.data.districtKey == 'kecamatan-utama';
+      allow create: if isValidId(holidayId)
+        && isValidSchoolHoliday(incoming())
+        && holidayId == (incoming().schoolId + '_' + incoming().date)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isActiveAdminUsername(incoming().updatedByUsername)
+        && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isValidId(holidayId)
+        && isValidSchoolHoliday(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().districtKey == existing().districtKey
+        && incoming().schoolId == existing().schoolId
+        && incoming().date == existing().date
+        && incoming().monthKey == existing().monthKey
+        && incoming().updatedAt == request.time
+        && isActiveAdminUsername(incoming().updatedByUsername)
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'schoolName', 'reason', 'updatedAt', 'updatedByUsername'
+        ]);
+      allow delete: if isValidId(holidayId);
+    }
+
+    // 3. Teachers Master Directory & Customizable Profile
+    match /teachers/{teacherId} {
+      allow get: if isValidId(teacherId);
+      allow list: if resource.data.districtKey == 'kecamatan-utama';
+      allow create: if isValidId(teacherId)
+        && isValidTeacher(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isActiveAdminUsername(incoming().updatedByUsername)
+        && existsAfter(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isValidId(teacherId)
+        && isValidTeacher(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().districtKey == existing().districtKey
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isActiveAdminUsername(incoming().updatedByUsername)
+            && exists(/databases/$(database)/documents/schools/$(incoming().schoolId))
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'fullName', 'nip', 'roleTitle', 'employmentType',
+              'schoolId', 'schoolName', 'username', 'hasFacePhoto',
+              'bio', 'whatsapp', 'instagram', 'avatarPhotoUrl', 'coverPhotoUrl', 'status',
+              'updatedAt', 'updatedByUsername'
+            ])
+          )
+          || (
+            incoming().updatedByUsername == existing().username
+            && isActiveTeacherCredential(existing().username)
+            && incoming().fullName == existing().fullName
+            && incoming().nip == existing().nip
+            && incoming().roleTitle == existing().roleTitle
+            && incoming().employmentType == existing().employmentType
+            && incoming().schoolId == existing().schoolId
+            && incoming().schoolName == existing().schoolName
+            && incoming().username == existing().username
+            && incoming().hasFacePhoto == existing().hasFacePhoto
+            && incoming().status == existing().status
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'bio', 'whatsapp', 'instagram', 'avatarPhotoUrl', 'coverPhotoUrl', 'updatedAt', 'updatedByUsername'
+            ])
+          )
+        );
+      allow delete: if isValidId(teacherId);
+    }
+
+    // 3b. Teacher Direct Messages (Profile Messaging & Inbox)
+    match /teacherMessages/{messageId} {
+      allow get: if isValidId(messageId);
+      allow list: if resource.data.districtKey == 'kecamatan-utama';
+      allow create: if isValidId(messageId)
+        && isValidTeacherMessage(incoming())
+        && incoming().createdAt == request.time
+        && incoming().isRead == false
+        && exists(/databases/$(database)/documents/teachers/$(incoming().senderId))
+        && exists(/databases/$(database)/documents/teachers/$(incoming().recipientId))
+        && get(/databases/$(database)/documents/teachers/$(incoming().senderId)).data.username == incoming().senderUsername
+        && isActiveTeacherCredential(incoming().senderUsername);
+      allow update: if isValidId(messageId)
+        && isValidTeacherMessage(incoming())
+        && incoming().districtKey == existing().districtKey
+        && incoming().threadId == existing().threadId
+        && incoming().senderId == existing().senderId
+        && incoming().senderName == existing().senderName
+        && incoming().senderUsername == existing().senderUsername
+        && incoming().recipientId == existing().recipientId
+        && incoming().recipientName == existing().recipientName
+        && incoming().body == existing().body
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+      allow delete: if false;
+    }
+
+    // 4. Legacy Isolated Reference Face Photos (Never listable)
+    match /teacherFaces/{teacherId} {
+      allow get: if isValidId(teacherId);
+      allow list: if false;
+      allow create: if isValidId(teacherId)
+        && isValidTeacherFace(incoming())
+        && incoming().teacherId == teacherId
+        && incoming().updatedAt == request.time
+        && isActiveAdminUsername(incoming().updatedByUsername)
+        && existsAfter(/databases/$(database)/documents/teachers/$(teacherId));
+      allow update: if isValidId(teacherId)
+        && isValidTeacherFace(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().updatedAt == request.time
+        && isActiveAdminUsername(incoming().updatedByUsername)
+        && exists(/databases/$(database)/documents/teachers/$(teacherId))
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'photoDataUrl', 'updatedAt', 'updatedByUsername'
+        ]);
+      allow delete: if isValidId(teacherId);
+    }
+
+    // 5. Isolated Salted SHA-256 PIN Credentials (Never listable)
+    match /credentials/{username} {
+      allow get: if isValidUsername(username);
+      allow list: if false;
+      allow create: if isValidUsername(username)
+        && isValidCredential(incoming())
+        && incoming().username == username
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (username == 'admin' && incoming().role == 'admin' && !exists(/databases/$(database)/documents/credentials/admin))
+          || (
+            isActiveAdminUsername(incoming().createdByUsername)
+            && (
+              incoming().role == 'admin'
+              || (isValidId(incoming().teacherId) && existsAfter(/databases/$(database)/documents/teachers/$(incoming().teacherId)))
+            )
+          )
+        );
+      allow update: if isValidUsername(username)
+        && isValidCredential(incoming())
+        && incoming().username == existing().username
+        && incoming().role == existing().role
+        && incoming().createdAt == existing().createdAt
+        && incoming().createdByUsername == existing().createdByUsername
+        && incoming().updatedAt == request.time
+        && isActiveAdminUsername(incoming().updatedByUsername)
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'pinSalt', 'pinHash', 'displayName', 'teacherId',
+          'schoolId', 'isActive', 'updatedAt', 'updatedByUsername'
+        ]);
+      allow delete: if isValidUsername(username) && username != 'admin';
+    }
+
+    // 6. Daily Attendance Records
+    match /attendance/{attendanceId} {
+      allow get: if isValidId(attendanceId);
+      allow list: if resource.data.districtKey == 'kecamatan-utama';
+      allow create: if isValidId(attendanceId)
+        && attendanceId == (incoming().date + '_' + incoming().teacherId)
+        && isValidAttendance(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/teachers/$(incoming().teacherId))
+        && (
+          (incoming().submittedByRole == 'admin' && isActiveAdminUsername(incoming().recordedByUsername))
+          || (
+            incoming().submittedByRole == 'teacher'
+            && incoming().status in ['hadir', 'terlambat', 'izin', 'sakit']
+            && get(/databases/$(database)/documents/teachers/$(incoming().teacherId)).data.username == incoming().recordedByUsername
+          )
+        );
+      allow update: if isValidId(attendanceId)
+        && isValidAttendance(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().districtKey == existing().districtKey
+        && incoming().date == existing().date
+        && incoming().monthKey == existing().monthKey
+        && incoming().teacherId == existing().teacherId
+        && incoming().updatedAt == request.time
+        && (
+          (
+            incoming().submittedByRole == 'admin'
+            && isActiveAdminUsername(incoming().recordedByUsername)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'checkInTime', 'checkOutTime', 'notes',
+              'teacherName', 'teacherNip', 'roleTitle', 'schoolId', 'schoolName',
+              'latitude', 'longitude', 'distanceMeters', 'locationStatus',
+              'faceStatus', 'faceConfidence', 'checkInPhotoUrl',
+              'submittedByRole', 'recordedByUsername', 'recordedByName', 'updatedAt'
+            ])
+          )
+          || (
+            incoming().submittedByRole == 'teacher'
+            && existing().status in ['hadir', 'terlambat']
+            && incoming().status == existing().status
+            && incoming().checkInTime == existing().checkInTime
+            && get(/databases/$(database)/documents/teachers/$(existing().teacherId)).data.username == incoming().recordedByUsername
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'checkOutTime', 'notes', 'submittedByRole', 'recordedByUsername', 'recordedByName', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(attendanceId);
+    }
+  }
+}
